@@ -1,0 +1,80 @@
+<!-- sanghavi/templates/sanghavi/add_data.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input, select {
+            margin-bottom: 10px;
+        }
+
+        button {
+            margin-top: 10px;
+        }
+    </style>
+    <title>Add User Input</title>
+</head>
+<body>
+    <h2>Add User Input</h2>
+
+    <div>
+        <h3>Values from the Database</h3>
+        <p>Suppliers: {% for supplier in suppliers %}{{ supplier.name }} {% endfor %}</p>
+        <p>Customers: {% for customer in customers %}{{ customer.name }} {% endfor %}</p>
+        <p>Places: {% for place in places %}{{ place.name }} {% endfor %}</p>
+        <p>Drivers: {% for driver in drivers %}{{ driver.name }} {% endfor %}</p>
+        <p>Lorries: {% for lorry in lorries %}{{ lorry.number }} {% endfor %}</p>
+        <p>Products: {% for product in products %}{{ product.name }} {% endfor %}</p>
+    </div>
+
+    <form method="POST" action="">
+        {% csrf_token %}
+
+        <label for="id_supplier">Supplier name:</label>
+        <input type="text" name="supplier" id="id_supplier">
+
+        <label for="id_customer">Customer name:</label>
+        <input type="text" name="customer" id="id_customer">
+
+        <label for="id_place">Place:</label>
+        <input type="text" name="place" id="id_place">
+
+        <label for="id_driver">Driver name:</label>
+        <input type="text" name="driver" id="id_driver">
+
+        <label for="id_lorry">Lorry no.:</label>
+        <input type="text" name="lorry" id="id_lorry">
+
+        <label for="id_purchase_challan">Purchase Challan no.:</label>
+        <input type="text" name="purchase_challan" id="id_purchase_challan">
+
+        <label for="id_sales_challan">Sales Challan no.:</label>
+        <input type="text" name="sales_challan" id="id_sales_challan">
+
+        <label for="id_product">Product name:</label>
+        <input type="text" name="product" id="id_product">
+
+        <label for="id_no_of_trip">No. of trips:</label>
+        <input type="text" name="no_of_trips" id="id_no_of_trip">
+
+        <!-- Date inputs (adjust as needed) -->
+        <label for="id_date1">Date 1:</label>
+        <input type="date" name="date_input1" id="id_date1" required>
+
+        <label for="id_date2">Date 2:</label>
+        <input type="date" name="date_input2" id="id_date2" required>
+
+        <label for="id_date3">Date 3:</label>
+        <input type="date" name="date_input3" id="id_date3" required>
+
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>
