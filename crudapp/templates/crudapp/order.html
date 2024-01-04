@@ -70,13 +70,30 @@
     // Calculate amount based on quantity, rate, and quantity_per
                 var amount = (data.rate / data.quantity_per) * quantity;
                 amountDisplay.textContent = 'Calculated Amount: ' + amount.toFixed(2);
-         }  else if (data.name.includes('Sand')) {
+         }  else if (data.name.includes('SandSqft')) {
     // Calculate amount based on height, width, length, rate, and quantity_per
-
-                var amount = (fHeight * fWidth * fLength * data.rate) / data.quantity_per;
+                var pcsQuantity = fHeight * fWidth * fLength;
+                var amount = (pcsQuantity * data.rate) / data.quantity_per;
 
                 amountDisplay.textContent = 'Calculated Amount: ' + amount.toFixed(2);
-        }   else {
+                document.getElementById('id_pcs').value = pcsQuantity.toFixed(2);
+                
+        }
+
+             else if (data.name.includes('SandPiece')) {
+    // Calculate amount based on height, width, length, rate, and quantity_per
+
+                var amount = data.rate * quantity;
+                amountDisplay.textContent = 'Calculated Amount: ' + amount.toFixed(2);
+        }
+            else if (data.name.includes('Cement')) {
+    // Calculate amount based on height, width, length, rate, and quantity_per
+
+                var amount = data.rate * quantity;
+                amountDisplay.textContent = 'Calculated Amount: ' + amount.toFixed(2);
+        }
+        
+        else {
                 amountDisplay.textContent = 'Calculated Amount: N/A';
 }
 

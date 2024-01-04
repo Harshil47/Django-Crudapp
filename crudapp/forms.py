@@ -59,12 +59,12 @@ class OrderForm(forms.ModelForm):
             width = cleaned_data.get('width')
             length = cleaned_data.get('length')
 
-            if product and product.name in ['Brick A', 'Brick B', 'Brick C', 'BrickA', 'BrickB', 'BrickC']:
+            if product and product.name in ['Brick', 'SandPiece', 'Cement']:
         # Calculate amount based on quantity, rate, and quantity_per
                 rate = product.rate
                 quantity_per = product.quantity_per
                 cleaned_data['amount'] = (rate / quantity_per) * quantity
-            elif product and product.name in ['Sand A', 'Sand B', 'Sand C', 'SandA', 'SandB', 'SandC']:
+            elif product and product.name in ['SandSqft']:
         # Calculate amount based on height, width, length, rate, and quantity_per
                 rate = product.rate
                 quantity_per = product.quantity_per
@@ -88,7 +88,13 @@ def calculate_amount(order_instance):
     if 'Brick' in order_instance.product.name:
         # Calculate amount based on quantity, rate, and quantity_per
         amount = (rate / quantity_per) * quantity
-    elif 'Sand' in order_instance.product.name:
+    if 'SandPiece' in order_instance.product.name:
+        # Calculate amount based on quantity, rate
+        amount = rate * quantity
+    if 'Cement' in order_instance.product.name:
+        # Calculate amount based on quantity, rate
+        amount = rate * quantity
+    elif 'SandSqft' in order_instance.product.name:
         # Calculate amount based on height, width, length, rate, and quantity_per
         vr_height, h = math.modf(height)
         vr_width, w = math.modf(width)
@@ -101,8 +107,8 @@ def calculate_amount(order_instance):
         height = h + vr_height
         width = w + vr_width
         length = l + vr_length
-         
-        amount = (height * width * length * rate) / quantity_per
+        pcsQuantity = height * width * length * rate 
+        amount = (pcsQuantity) / quantity_per
     else:
         # Add additional cases as needed
         amount = 0  # Set a default value or handle the case accordingly
