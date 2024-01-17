@@ -88,12 +88,33 @@ def updateView(request, f_oid):
     context = {'form': form}
     return render(request, template_name, context)
 
+def updateCusView(request, f_Cname):
+    obj = Customer.objects.get(Cname=f_Cname)
+    form = CustomerForm(instance=obj)
+    if request.method == 'POST':
+        form = CustomerForm(request.POST, instance=obj)
+        if form.is_valid():
+            form.save()
+            return redirect('customer_info_url')
+    template_name = 'crudapp/customer_add.html'
+    context = {'form': form}
+    return render(request, template_name, context)
+
 def deleteView(request, f_oid):
     obj = Orders.objects.get(oid=f_oid)
     if request.method == 'POST':
         obj.delete()
         return redirect('show_url')
     template_name = 'crudapp/confirmation.html'
+    context = {'obj': obj}
+    return render(request, template_name, context)
+
+def deleteCusView(request, f_Cname):
+    obj = Customer.objects.get(Cname=f_Cname)
+    if request.method == 'POST':
+        obj.delete()
+        return redirect('customer_info_url')
+    template_name = 'crudapp/CusConfirmation.html'
     context = {'obj': obj}
     return render(request, template_name, context)
 
