@@ -1,6 +1,6 @@
 from django.shortcuts import redirect, render , get_object_or_404
 from .forms import OrderForm,  CustomerForm, BillingForm
-from .models import Orders, Customer, Product, Billing
+from .models import Orders, Customer, Product, Billing, Record , TempTable
 from django.db.models import Q
 import csv
 from django.http import HttpResponse, JsonResponse
@@ -13,6 +13,18 @@ from django.views.decorators.http import require_POST
 from django.db.models import  Min ,Max
 import itertools
 from django.db import transaction
+import datetime as inv_datetime 
+from django.db.models import Count
+
+from mailmerge import MailMerge
+from django.template.loader import get_template
+from django.http import FileResponse
+import docx
+from docx import Document
+from docx.shared import Pt
+import io, os
+from num2words import num2words
+from django.db.models import Value, CharField
 # Create your views here.
 def orderFormView(request):
     form = OrderForm()
@@ -208,17 +220,134 @@ def billView(request):
 '''
 
 
+def generate_invoice_id(model_name):
+    today = inv_datetime .date.today()
+    current_month = today.strftime("%b").upper()
+    current_monthInt = today.month
+    current_year = today.year
+
+    # Determine financial year
+    financial_year = (
+        f"{current_year - 1}-{current_year % 100}"
+        if current_monthInt < 4
+        else f"{current_year}-{(current_year + 1) % 100}"
+    )
+    distinct_records = model_name.objects.filter(Invoice__endswith=f"/{financial_year}").values("Invoice").distinct()
+
+# Display the distinct Invoice values
+    print("Distinct Invoice Numbers:")
+    for record in distinct_records:
+        print(record["Invoice"])
+
+    # Count the distinct records
+    invoice_count = len(distinct_records)
+    print("Calculated Invoice Count:", invoice_count)
+
+    # Generate the invoice ID
+    invoice_id = f"GT/{invoice_count + 1}/{current_month}/{financial_year}"
+
+    return invoice_id
+
+
+
 def billView(request):
     if request.method == 'POST':
         merged_oids_str = request.POST.get('merged_oids', '')
         
+        
         if merged_oids_str:
+            '''
             merged_oids = [int(oid) for oid in merged_oids_str.split(',')]
-            
+            print(merged_oids)
             # Perform the update in the database
+            
             Orders.objects.filter(oid__in=merged_oids).update(billed='Yes')
+            '''
+            merged_oids = [int(oid) for oid in merged_oids_str.split(',')]
+    
+    # Retrieve the Orders objects corresponding to merged_oids from the database
+            orders_to_update = Orders.objects.filter(oid__in=merged_oids)
 
-            return redirect('success_url')  
+    # Get the mergedOids field values for each retrieved Orders object
+            merged_oid_lists = orders_to_update.values_list('mergedOids', flat=True)
+
+    # Flatten the list of mergedOids
+            all_merged_oids = [int(oid) for merged_oid_list in merged_oid_lists for oid in merged_oid_list.split(',') if oid]
+
+    # Perform the update in the Orders table
+            Orders.objects.filter(oid__in=all_merged_oids).update(billed='Yes')
+            
+            invoice_number = generate_invoice_id(Record)
+            
+            for oid in merged_oids:
+                # Fetch data from Orders table
+                order_data = Orders.objects.get(oid=oid)
+                
+                # Fetch data from Product table
+                product_data = Product.objects.get(name=order_data.product.name)
+
+                # Fetch data from Billing table
+                billing_data = Billing.objects.get(oid=oid)
+                
+                customer_data = Customer.objects.get(Cname=order_data.Cname)
+                
+                temp_table = TempTable.objects.get(pk=1)
+                end_date_from_temp_table = temp_table.end_date
+                # Additional data for the Record table
+                Cname = order_data.Cname
+                Cadr = customer_data.adr
+                Sadr = order_data.Pname
+                state = customer_data.state
+                code = customer_data.code
+                gst = customer_data.gst
+                date = order_data.df3  
+                lorry_no = order_data.Lno
+                trip = order_data.trip
+                challan = order_data.scno
+                hsn = product_data.hsn_code
+                tax_rate = product_data.tax_rate
+                product = order_data.product.name
+                aggregated_quantity = order_data.AggregatedQuantity
+                rate = billing_data.final_rate
+                aggregated_amount = order_data.AggregatedAmount
+                cgst = aggregated_amount * (product_data.tax_rate / 200)
+                sgst = aggregated_amount * (product_data.tax_rate / 200)
+                final_amount = aggregated_amount + cgst + sgst
+                
+                print(final_amount)
+                # Create a Record object and save it to the database
+                record = Record.objects.create(
+                    Cname = Cname,
+                    Cadr = Cadr,
+                    Sadr = Sadr,
+                    state = state,
+                    code = code,
+                    gst = gst,
+                    date=date,
+                    InvoiceEnd=end_date_from_temp_table,
+                    Invoice = invoice_number,
+                    lorry_no=lorry_no,
+                    trip=trip,
+                    challan=challan,
+                    hsn=hsn,
+                    tax_rate = tax_rate,
+                    product=product,
+                    aggregated_quantity=aggregated_quantity,
+                    rate=rate,
+                    aggregated_amount=aggregated_amount,
+                    cgst=cgst,
+                    sgst=sgst,
+                    final_amount=final_amount,
+                )
+            filtered_records = Record.objects.filter(Invoice=invoice_number)
+
+# Calculate the sum of the final amount for the filtered records
+            total_amount_sum = filtered_records.aggregate(Sum('final_amount'))['final_amount__sum']
+
+# Update the 'total_amount' column for the filtered records
+            filtered_records.update(total_amount=total_amount_sum)
+
+            return redirect('showBill_url')  
     
     
     
@@ -242,6 +371,10 @@ def billView(request):
         end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
     except (TypeError, ValueError):
         end_date = None
+        
+    temp_table, created = TempTable.objects.get_or_create(pk=1)
+    temp_table.end_date = end_date
+    temp_table.save()
 
     # Assuming 'pname' and 'product' are the fields to match
     # Filter based on customer and date range
@@ -268,7 +401,7 @@ def billView(request):
         group_list = list(group)
         if group_list:
             merged_oids = list(item['oid'] for item in group_list)
-            oid = min(item['oid'] for item in group_list)
+            oid = max(item['oid'] for item in group_list)
             total_trips = sum(item['trip'] for item in group_list)
             total_pcs = sum(item['pcs'] for item in group_list)
             total_amount = max(item['AggregatedAmount'] or 0 for item in group_list)
@@ -310,7 +443,7 @@ def billView(request):
             group_list = list(group)
             if group_list:
                 merged_oids = list(item['oid'] for item in group_list)
-                oid = min(item['oid'] for item in group_list)
+                oid = max(item['oid'] for item in group_list)
                 total_trips = sum(item['trip'] for item in group_list)
                 total_pcs = sum(item['pcs'] for item in group_list)
                 total_amount = max(item['AggregatedAmount'] or 0 for item in group_list)
@@ -369,6 +502,7 @@ def rateView(request, oid):
             amount = order_instance.AggregatedQuantity * total_rate
             print("transport_rate :",transport_rate)
             print("Amount :",amount)
+            print("OID :", oid)
             order_instance.AggregatedAmount = amount  # Update with your calculation
             order_instance.save()
 
@@ -415,3 +549,140 @@ def rateView(request, oid):
         print(previous_bill)
     # Render the form for both GET and POST requests
     return render(request, 'crudapp/rate.html', {'order_instance': order_instance,'form': form, 'previous_bill': previous_bill})
+
+def showBillView(request):
+    customer_query = request.GET.get('customer', '')
+    date_query = request.GET.get('date', '')
+
+    # Retrieve distinct records based on the 'Invoice' field
+    records = Record.objects.values('Invoice').annotate(
+        record_id=Max('record_id'),
+        date=Max('date'),
+        customer=Max('Cname'),
+        total_amount=Max('total_amount'),
+    ).order_by('-date')
+
+    if customer_query:
+        records = records.filter(Q(customer__icontains=customer_query))
+    if date_query:
+        date = datetime.strptime(date_query, '%Y-%m-%d').date()
+        records = records.filter(date=date)
+
+    template_name = 'crudapp/showBill.html'
+    context = {'records': records}
+    return render(request, template_name, context)
+
+
+
+def replace_placeholders(template_path, output_path, replacements):
+    template = MailMerge(template_path)
+    template.merge(**replacements)
+    template.write(output_path)
+    
+def add_rows_to_table(doc, query_set):
+    # Access the predefined table (assuming it's the first table in the document)
+    table = doc.tables[0]
+
+    # Iterate through the queryset and add rows to the table
+    for index, record in enumerate(query_set):
+        # Add a new row to the table
+        row_cells = table.add_row().cells
+
+        # Populate the cells with data from the queryset
+        row_cells[0].text = record.date.strftime("%b %d") #str(record.date)
+        row_cells[1].text = record.lorry_no
+        row_cells[2].text = str(record.trip)
+        row_cells[3].text = record.challan
+        row_cells[4].text = record.hsn
+        row_cells[5].text = record.product
+        row_cells[6].text = str(record.aggregated_quantity)
+        row_cells[7].text = str(record.rate)
+        row_cells[8].text = str(record.aggregated_amount)
+        row_cells[9].text = f"{round(record.cgst, 2)} ({str(record.tax_rate / 2)})"
+        row_cells[10].text = f"{round(record.sgst, 2)} ({str(record.tax_rate / 2)})"
+        row_cells[11].text = str(record.final_amount)
+
+        
+        if index == len(query_set) - 1:
+            '''
+            # Add 'Total Amount' text to the merged cell (Quantity and Rate)
+            merged_cell = row_cells[6].merge(row_cells[7])
+            merged_cell.text = 'Total Amount'
+
+            # Add the total amount below the 'Final Amount' column
+            total_amount_cell = table.add_row().cells
+            total_amount_cell[8].text = str(record.total_amount)
+            '''
+            total_amount_row = table.add_row().cells
+            total_amount_cell = total_amount_row[6].merge(total_amount_row[8])
+            total_amount_cell.text = f'Total Amount : {round(record.total_amount)}'
+
+
+            
+            # Add a new row for 'Rupees' and the total amount in words
+            rupees_row = table.add_row().cells
+            rupees_cell = rupees_row[0].merge(rupees_row[1])
+            rupees_cell.text = 'Rupees'
+
+            # Add the total amount in words
+            words = num2words(round(record.total_amount), lang='en_IN')
+            capitalized_words = words.title()
+            #amount_in_words_row = table.add_row().cells
+            amount_in_words_cell = rupees_row[2].merge(rupees_row[11])
+            amount_in_words_cell.text = capitalized_words
+
+def printDocxView(request):
+    if request.method == 'POST':
+        invoice_id = request.POST.get('invoice_id')
+
+        # Load the DOCX template file
+        template_path = 'crudapp/templates/crudapp/InVoice.docx'
+        output_path = f'modified_invoice_{invoice_id.replace("/", "_")}.docx'
+
+        # Get records based on the invoice_id
+        record = Record.objects.filter(Invoice=invoice_id).first()
+
+        # Convert all fields to strings
+        Cname = str(record.Cname)
+        state = str(record.state)
+        code = str(record.code)
+        Cadr = str(record.Cadr)
+        Sadr = str(record.Sadr)
+        gst = str(record.gst)
+        date = str(record.InvoiceEnd)  # Add the actual field name for the date
+
+        # Define replacements for placeholders
+        replacements = {
+            'Cname': Cname,
+            'invoice_id': invoice_id,
+            'Cadr': Cadr,
+            'state': state,
+            'code': code,
+            'gst': gst,
+            'Sadr': Sadr,
+            'date': date,  # Add the actual field name for the date
+            # Add other placeholders and replacements as needed
+        }
+        replace_placeholders(template_path, output_path, replacements)
+        
+        doc = Document(output_path)
+
+        # Your queryset
+        query_set = Record.objects.filter(Invoice=invoice_id)
+
+        # Add rows to the table
+        add_rows_to_table(doc, query_set )
+
+        # Save the modified DOCX document
+        doc.save(output_path)
+
+        # Save the modified DOCX document to a BytesIO buffer
+        buffer = io.BytesIO()
+        with open(output_path, 'rb') as file:
+            buffer.write(file.read())
+
+        # Create a FileResponse and return it for download
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        response['Content-Disposition'] = f'attachment; filename=modified_invoice_{invoice_id.replace("/", "_")}.docx'
+        response.write(buffer.getvalue())
+        return response

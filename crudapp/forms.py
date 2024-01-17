@@ -6,6 +6,7 @@ class OrderForm(forms.ModelForm):
     class Meta:
         model = Orders
         fields = '__all__'
+        exclude = ['billed', 'AggregatedAmount', 'AggregatedQuantity', 'mergedOids']
 
         labels = {
             'fname' : 'Supplier Name',
@@ -16,11 +17,11 @@ class OrderForm(forms.ModelForm):
             'pcno' : 'Purchase Challan no.' ,
             'scno' : 'Sales Challan no' ,
             'product' : 'Product Name' ,
-            'pcs' : 'Quantity',
             'trip' : 'Number of trips' ,
             'df1' : 'Entry Date',
             'df2' : 'Purchase Challan Date',
             'df3' : 'Sales Challan Date',
+            'pcs' : 'Quantity',
             'height' : 'height',
             'width' : 'width',
             'length' : 'length',
@@ -36,11 +37,11 @@ class OrderForm(forms.ModelForm):
             'pcno' : forms.TextInput(attrs={'placeholder': '?'}),
             'scno' : forms.TextInput(attrs={'placeholder': '?'}),
             'product': forms.Select(attrs={'onchange': 'updateProductDetails();'}),
-            'pcs' : forms.NumberInput(attrs={'placeholder': '?'}),
             'trip' : forms.NumberInput(attrs={'placeholder': '?'}),
             'df1': forms.DateInput(attrs={'type': 'Date'}),
             'df2': forms.DateInput(attrs={'type': 'Date'}),
             'df3': forms.DateInput(attrs={'type': 'Date'}),
+            'pcs' : forms.NumberInput(attrs={'placeholder': '?'}),
             'height': forms.NumberInput(attrs={'placeholder': 'Height' }),
             'width': forms.NumberInput(attrs={'placeholder': 'Width'}),
             'length': forms.NumberInput(attrs={'placeholder': 'Length'}),
@@ -58,7 +59,10 @@ class OrderForm(forms.ModelForm):
             height = cleaned_data.get('height')
             width = cleaned_data.get('width')
             length = cleaned_data.get('length')
-
+            if quantity is None:
+                quantity = 1
+                cleaned_data['pcs'] = quantity
+            
             if product and product.name in ['Brick', 'SandPiece', 'Cement']:
         # Calculate amount based on quantity, rate, and quantity_per
                 rate = product.rate
@@ -75,6 +79,8 @@ class OrderForm(forms.ModelForm):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.fields['product'].queryset = Product.objects.all()
+            
+            
 def calculate_amount(order_instance):
     # Add your calculation logic here based on the order_instance
     # For example:

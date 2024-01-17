@@ -13,5 +13,7 @@ urlpatterns = [
     path('bill/', views.billView, name='bill_url'),
     path('rate/<int:oid>/', views.rateView, name='rate_url'),
     path('submit/<int:oid>', views.rateView, name='submit_url'),
+    path('show-bill/', views.showBillView, name='showBill_url'),
+    path('print-docx/', views.printDocxView, name='print_docx_url'),
     
 ]
